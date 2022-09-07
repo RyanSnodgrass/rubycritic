@@ -58,7 +58,7 @@ describe RubyCritic::Command::Compare do
 
     context 'when file from feature_branch has an equal or better score than base_branch' do
       it 'outputs score' do
-        options = ['-b', 'feature_branch', '-t', '0', 'test/samples/compare_file.rb']
+        options = ['-b', 'base_branch', '-t', '0', 'test/samples/compare_file.rb']
         options = RubyCritic::Cli::Options.new(options).parse.to_h
         RubyCritic::Config.set(options)
         copy_proc = proc do |_|
@@ -85,6 +85,24 @@ describe RubyCritic::Command::Compare do
       _(@options[:feature_branch]).must_equal 'feature_branch'
       _(@options[:mode]).must_equal :compare_branches
       _(@options[:threshold_score]).must_equal 10
+    end
+  end
+
+  describe 'when the base branch provided is the same as the current branch' do
+    it 'both branches are therefore the same so only run Rubycritic.compare once' do
+      options = ['-b', 'feature_branch', '-t', '0', 'test/samples/compare_file.rb']
+      options = RubyCritic::Cli::Options.new(options).parse.to_h
+      RubyCritic::Config.set(options)
+      copy_proc = proc do |_|
+        FileUtils.cp 'test/samples/base_branch_file.rb', 'test/samples/compare_file.rb'
+      end
+      RubyCritic::SourceControlSystem::Git.stub(:switch_branch, copy_proc) do
+        comparison = RubyCritic::Command::Compare.new(options)
+        comparison.expects(:analyse_branch).once
+
+        status_reporter = comparison.execute
+        _(status_reporter.score).must_equal RubyCritic::Config.feature_branch_score
+      end
     end
   end
 end
